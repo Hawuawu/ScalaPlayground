@@ -14,7 +14,8 @@ class CommandHandler(stateActor: ActorRef) extends Actor with ActorLogging{
 class WaitForStateActor(parent: ActorRef, command: PlaygroundCommand) extends Actor with ActorLogging {
   def receive = {
     case as: ActualState =>
-      command.command(as.state).foreach(event => sender() ! event) //Send event to state actor
+      val sndr = sender()
+      command.command(as.state).foreach(sndr ! _)
       context.stop(self)
   }
 }

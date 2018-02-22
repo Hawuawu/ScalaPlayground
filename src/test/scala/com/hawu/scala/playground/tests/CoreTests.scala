@@ -34,18 +34,19 @@ class PlaygroundFixture(val uuid: Option[String] = None) {
 
   def prepare = {
     restartState
-    handler = actorSystem.map(as => as.actorOf(Props(classOf[CommandHandler], state.get), ActorServicesNamingConvention.commandHandler))
+    handler = actorSystem.map(_.actorOf(Props(classOf[CommandHandler], state.get), ActorServicesNamingConvention.commandHandler))
   }
 
   def restartState: Unit = {
-    state.map(st => actorSystem.map(as => as.stop(st)))
-    state = actorSystem.map(as => as.actorOf(Props(classOf[PlaygroundState], "persistence-test"), ActorServicesNamingConvention.playgroundState))
+    state.map(st => actorSystem.map(_.stop(st)))
+    state = actorSystem.map(_.actorOf(Props(classOf[PlaygroundState], "persistence-test"), ActorServicesNamingConvention.playgroundState))
     restartNO += 1
   }
 
   def reset = {
     actorSystem.map(as => {
       as.terminate()
+      // FIXME do not fork main thread
       Await.ready(as.whenTerminated, 365.days)
     })
   }
@@ -57,7 +58,7 @@ class PlaygroundFixture(val uuid: Option[String] = None) {
   }
 
   def giveSomeTime = {
-    blocking {
+    blocking { // FIXME do not fork main thread
       Thread.sleep(1000)
     }
   }
@@ -66,6 +67,7 @@ class PlaygroundFixture(val uuid: Option[String] = None) {
     state.map(s => {
       implicit val timeout = Timeout(5 seconds)
       val future = s ? GetSequenceNumberForMessages
+      // FIXME do not fork main thread
       val result = Await.result(future, timeout.duration).asInstanceOf[SequenceNumberForMessages]
       result.number
     })
@@ -77,7 +79,6 @@ class CoreTests extends FlatSpec {
 
   "Playground state" should "increase sequenceNO after receiving InputChanged" in {
     val fixture = new PlaygroundFixture
-
 
     try {
       fixture.prepare
@@ -141,9 +142,11 @@ class CoreTests extends FlatSpec {
         implicit val timeout = Timeout(5 seconds)
 
         val future = listener ? GetCount
+        // FIXME do not fork main thread
         val result = Await.result(future, timeout.duration).asInstanceOf[Count]
 
         val future2 = listener2 ? GetCount
+        // FIXME do not fork main thread
         val result2 = Await.result(future2, timeout.duration).asInstanceOf[Count]
 
         assert(result.count == 10)
@@ -179,6 +182,7 @@ class CoreTests extends FlatSpec {
       implicit val timeout = Timeout(5 seconds)
 
       val future = listener ? GetCount
+      // FIXME do not fork main thread
       val result = Await.result(future, timeout.duration).asInstanceOf[Count]
 
       /*

@@ -4,9 +4,9 @@ import akka.actor.{Actor, ActorRef}
 import com.hawu.scala.playground.events.PlaygroundStateChangeEvent
 import com.hawu.scala.playground.persistence.EventPersisted
 
-
 case object GetCount
 case class Count(count: Int)
+
 class ListenerCounter(val expectedCount: Int) extends Actor {
 
  var counter = 0
@@ -20,11 +20,11 @@ class ListenerCounter(val expectedCount: Int) extends Actor {
    case e: EventPersisted =>
      counter += 1
      test
- }
+  }
 
   def test = {
-    if(counter == expectedCount) {
-      receiver.map(rcv => rcv ! Count(expectedCount))
+    if (counter == expectedCount) {
+      receiver.map(_ ! Count(expectedCount))
     }
   }
 }

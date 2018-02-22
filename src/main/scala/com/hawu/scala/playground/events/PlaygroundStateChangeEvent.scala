@@ -1,4 +1,5 @@
 package com.hawu.scala.playground.events
 
-trait PlaygroundStateChangeEvent
+sealed trait PlaygroundStateChangeEvent
+
 case class InputChanged(newInput: String) extends PlaygroundStateChangeEvent

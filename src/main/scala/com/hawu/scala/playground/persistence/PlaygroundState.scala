@@ -5,11 +5,18 @@ import akka.persistence._
 import com.hawu.scala.playground.commands.SetPlaygroundInput
 import com.hawu.scala.playground.events.{InputChanged, PlaygroundStateChangeEvent}
 
-
-case class PlaygroundStateContent (input: String = "")
-
 case object GetActualState
-case class ActualState(state: PlaygroundStateContent)
+
+case class ActualState(state: PlaygroundState.Content)
+
+case object GetSequenceNumberForMessages
+
+case object RegisterPersistListener
+case object DeRegisterPersistListener
+
+case class SequenceNumberForMessages(number: Int)
+
+case class EventPersisted(event: PlaygroundStateChangeEvent)
 
 case object ClearJournal
 case object JournalCleared
@@ -19,16 +26,14 @@ case object ClearSnapshot
 case object SnapshotCleared
 case object CannotClearSnapshot
 
-case object GetSequenceNumberForMessages
-case class SequenceNumberForMessages(number: Int)
-
-case object RegisterPersistListener
-case object DeRegisterPersistListener
-
-case class EventPersisted(event: PlaygroundStateChangeEvent)
+object PlaygroundState {
+  case class Content(input: String = "")
+}
 
 class PlaygroundState(val persistenceId: String) extends PersistentActor  with ActorLogging {
-  var content = PlaygroundStateContent()
+  import PlaygroundState._
+
+  var content = Content()
   var messagesSequenceNO = 0
   var snapshotsSequenceNO = 0
 
@@ -41,10 +46,10 @@ class PlaygroundState(val persistenceId: String) extends PersistentActor  with A
 
   override def receiveCommand = {
     case RegisterPersistListener =>
-      persistListener = sender :: persistListener.filterNot(l => l == sender)
+      persistListener = sender :: persistListener.filterNot(_ == sender)
 
     case DeRegisterPersistListener =>
-      persistListener = persistListener.filterNot(l => l == sender)
+      persistListener = persistListener.filterNot(_ == sender)
 
     case GetSequenceNumberForMessages =>
       sender ! SequenceNumberForMessages(messagesSequenceNO)
@@ -52,8 +57,8 @@ class PlaygroundState(val persistenceId: String) extends PersistentActor  with A
     case chi: InputChanged =>
       messagesSequenceNO += 1
       log.info("Received message {}", chi)
-      persist(chi) {e => {
-        persistListener.foreach(l => l ! EventPersisted(e))
+      persist(chi) { e => {
+        persistListener.foreach(_ ! EventPersisted(e))
       }}
       content = content.copy(input = chi.newInput)
 
@@ -72,13 +77,13 @@ class PlaygroundState(val persistenceId: String) extends PersistentActor  with A
 
     case DeleteMessagesSuccess =>
       log.debug("Got DeleteMessagesSuccess")
-      clearingJournalQueue.foreach(s => s ! JournalCleared)
-      clearingJournalQueue = List()
+      clearingJournalQueue.foreach(_ ! JournalCleared)
+      clearingJournalQueue = Nil
 
     case DeleteMessagesFailure =>
       log.debug("Got DeleteMessagesFailure")
-      clearingJournalQueue.foreach(s => s ! CannotClearJournal)
-      clearingJournalQueue = List()
+      clearingJournalQueue.foreach(_ ! CannotClearJournal)
+      clearingJournalQueue = Nil
 
     case ClearSnapshot =>
       clearingSnapshotQueue = sender :: clearingSnapshotQueue
@@ -86,17 +91,17 @@ class PlaygroundState(val persistenceId: String) extends PersistentActor  with A
 
     case DeleteSnapshotSuccess =>
       log.debug("Got DeleteSnapshotSuccess")
-      clearingSnapshotQueue.foreach(s => s ! SnapshotCleared)
-      clearingSnapshotQueue = List()
+      clearingSnapshotQueue.foreach(_ ! SnapshotCleared)
+      clearingSnapshotQueue = Nil
 
     case DeleteSnapshotFailure =>
       log.debug("Got DeleteSnapshotFailure")
-      clearingSnapshotQueue.foreach(s => s ! CannotClearSnapshot)
-      clearingSnapshotQueue = List()
+      clearingSnapshotQueue.foreach(_ ! CannotClearSnapshot)
+      clearingSnapshotQueue = Nil
   }
 
   override def receiveRecover = {
-    case SnapshotOffer(_, snapshot: PlaygroundStateContent) => {
+    case SnapshotOffer(_, snapshot: Content) => {
       log.debug("Offered snapshot {}", snapshot)
       content = snapshot
       snapshotsSequenceNO += 1
